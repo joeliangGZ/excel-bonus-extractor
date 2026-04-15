@@ -16,26 +16,73 @@ def get_all_excel_files(folder_path):
                 excel_files.append(os.path.join(root, file))
     return excel_files
 
+def find_header_row(df):
+    """查找表头所在行，返回行索引和列名映射"""
+    for idx, row in df.iterrows():
+        # 将行内容转为字符串，查找是否包含必填列
+        row_values = [str(val).strip() for val in row.values]
+        
+        # 检查是否包含ID和姓名列
+        has_id = any(col == "ID" for col in row_values)
+        has_name = any(col == "姓名" for col in row_values)
+        has_bonus = any(BONUS_COLUMN_KEYWORD in col for col in row_values)
+        
+        if has_id and has_name and has_bonus:
+            # 构建列名映射
+            column_mapping = {}
+            for col_idx, col_name in enumerate(row_values):
+                column_mapping[col_idx] = col_name
+            return idx, column_mapping
+    
+    return None, None
+
 def extract_data_from_sheet(df):
-    """从单个工作表中提取所需数据"""
-    # 检查是否存在必填列
-    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing_columns:
-        return None, f"缺少必填列: {', '.join(missing_columns)}"
+    """从单个工作表中提取所需数据，自动查找表头位置"""
+    # 先检查列名本身是否已经是表头（正常情况，表头在第一行）
+    column_names = [str(col).strip() for col in df.columns]
+    has_id = any(col == "ID" for col in column_names)
+    has_name = any(col == "姓名" for col in column_names)
+    has_bonus = any(BONUS_COLUMN_KEYWORD in col for col in column_names)
     
-    # 查找实发奖金列
-    bonus_columns = [col for col in df.columns if BONUS_COLUMN_KEYWORD in str(col)]
-    if not bonus_columns:
-        return None, "未找到包含'实发奖金'的列"
-    
-    # 取第一个匹配的奖金列
-    bonus_col = bonus_columns[0]
+    if has_id and has_name and has_bonus:
+        # 列名本身就是表头
+        id_col_idx = next(i for i, name in enumerate(column_names) if name == "ID")
+        name_col_idx = next(i for i, name in enumerate(column_names) if name == "姓名")
+        bonus_col_idx = next(i for i, name in enumerate(column_names) if BONUS_COLUMN_KEYWORD in name)
+        
+        data_rows = df
+    else:
+        # 在行数据中查找表头
+        header_row_idx, column_mapping = find_header_row(df)
+        if header_row_idx is None:
+            return None, "未找到包含ID、姓名和实发奖金的表头行"
+        
+        # 获取列索引
+        id_col_idx = next(i for i, name in column_mapping.items() if name == "ID")
+        name_col_idx = next(i for i, name in column_mapping.items() if name == "姓名")
+        bonus_col_idx = next(i for i, name in column_mapping.items() if BONUS_COLUMN_KEYWORD in name)
+        
+        # 从表头下一行开始提取数据
+        data_rows = df.iloc[header_row_idx + 1:]
     
     # 提取所需列
-    extracted_df = df[REQUIRED_COLUMNS + [bonus_col]].copy()
-    # 重命名奖金列
-    extracted_df.columns = ["ID", "姓名", "实发奖金"]
+    extracted_data = []
+    for _, row in data_rows.iterrows():
+        id_val = row.iloc[id_col_idx]
+        name_val = row.iloc[name_col_idx]
+        bonus_val = row.iloc[bonus_col_idx]
+        
+        # 跳过空行
+        if pd.isna(id_val) and pd.isna(name_val) and pd.isna(bonus_val):
+            continue
+            
+        extracted_data.append({
+            "ID": id_val,
+            "姓名": name_val,
+            "实发奖金": bonus_val
+        })
     
+    extracted_df = pd.DataFrame(extracted_data)
     return extracted_df, None
 
 def main():
