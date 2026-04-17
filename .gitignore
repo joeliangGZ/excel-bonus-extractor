@@ -21,15 +21,12 @@ wheels/
 *.egg
 Pipfile.lock
 
-# Excel files
-*.xlsx
-*.xls
+# Excel临时文件
 ~$*.xlsx
 ~$*.xls
 
-# Input and output folders
-input_bonus/*
-奖金汇总表.xlsx
+# 保留空文件夹
+input_bonus/.gitkeep
 
 # IDE
 .vscode/

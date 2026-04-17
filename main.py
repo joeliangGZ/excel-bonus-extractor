@@ -72,13 +72,30 @@ def extract_data_from_sheet(df):
         name_val = row.iloc[name_col_idx]
         bonus_val = row.iloc[bonus_col_idx]
         
-        # 跳过空行
-        if pd.isna(id_val) and pd.isna(name_val) and pd.isna(bonus_val):
+        # 过滤无效行：ID或姓名为空的行（包括总计行、空行）
+        if pd.isna(id_val) or pd.isna(name_val):
+            continue
+            
+        # 转换为字符串，去除前后空格
+        id_str = str(id_val).strip()
+        name_str = str(name_val).strip()
+        bonus_str = str(bonus_val).strip() if pd.notna(bonus_val) else ""
+        
+        # 过滤表头/子表头行：包含这些关键字的行都不是有效数据
+        invalid_keywords = ["ID", "姓名", "实发奖金", "合计", "总计", "汇总", "总得分", "得分", "完成率", "目标", "备注", "说明", "字段"]
+        if (any(keyword in id_str for keyword in invalid_keywords) or 
+            any(keyword in name_str for keyword in invalid_keywords) or
+            any(keyword in bonus_str for keyword in invalid_keywords)):
+            # 遇到新的表头行，说明后面是其他区域数据，停止处理当前工作表所有后续行
+            break
+            
+        # 过滤ID不是有效数字/编号的情况（ID应该是数字或者字母加数字，不会是纯中文）
+        if len(id_str) > 0 and all('\u4e00' <= c <= '\u9fff' for c in id_str):
             continue
             
         extracted_data.append({
             "ID": id_val,
-            "姓名": name_val,
+            "姓名": name_str,
             "实发奖金": bonus_val
         })
     
